@@ -1,49 +1,41 @@
-# channel-cutting — Cancelación de canales
+# SDD Agent — desarrollo guiado por especificaciones multiproyecto
 
-Proyecto de Galicia — SRE. El trabajo sigue un SDLC asistido por IA con compuerta de
-especificación: **no se escribe código de producto hasta que Requisitos y Diseño estén
-completos y validados.**
+Este repositorio contiene **instrucciones, skills y validadores** reutilizables, no el código del proyecto de producto. El proyecto destino mantiene sus documentos y un `sdd.json` en su propia raíz.
+
+## Identificar proyecto
+
+Antes de cualquier operación:
+1. Solicitar o identificar explícitamente la raíz del proyecto destino. **No asumir** que es `sdd_agent`.
+2. Leer `sdd.json` del proyecto. Si no existe, usar `examples/generic/sdd.json` como plantilla previa confirmación del usuario.
+3. Leer `profiles/<nombre>/policy.json` correspondientes a la lista `profiles` de esa configuración. Ningún perfil de dominio se aplica de forma implícita.
+4. Mantener los documentos en el repositorio del proyecto; no crear PRD o arquitectura del producto en `sdd_agent`.
 
 ## Flujo
 
-| Etapa | Comando | Salida | Valida |
-|---|---|---|---|
-| 1 — Requisitos | `/requisitos` | `docs/01-requisitos/PRD.md` | `python tools/spec_lint.py --stage 1` |
-| 2 — Diseño | `/diseno` | `docs/02-diseno/` (arquitectura, ADRs, guardarraíles, diagramas) | `python tools/spec_lint.py --stage 2` |
+| Etapa | Skill | Validación |
+|---|---|---|
+| 1 Requisitos | /requisitos | `python tools/project_policy.py --project <ruta-proyecto> --stage 1` |
+| 2 Diseño | /diseno | `python tools/project_policy.py --project <ruta-proyecto> --stage 2` |
 
-Skill de referencia: `/arquetipos-pom-paas` — qué parent (POM, PaaS o Commons) usar
-según la capa del componente. Consultarlo en la Etapa 2 al decidir el stack de cada
-servicio; la elección lleva ADR.
+El motor genérico verifica estructura documental, no coherencia semántica ni aprobación humana. Las decisiones que requieran ADR necesitan aprobación de sus responsables. No iniciar implementación por el mero resultado de un linter.
 
-## Spec Gate
+## Perfiles
 
-Un hook `PreToolUse` (`tools/spec_gate_hook.py`) corre el validador antes de cada
-`Write`/`Edit`. Si la spec está incompleta, **bloquea la escritura de código de
-producto** y devuelve la lista de lo que falta.
+- `generic`: reglas comunes de base.
+- `java-spring-boot`: secciones técnicas orientadas a servicios Java y Spring.
+- `channel-cutting`: controles documentales de cancelación de canales.
+- `arquetipos-pom-paas`: skill de referencia específica, invocar solo cuando corresponda a la plataforma.
 
-Quedan siempre editables: `docs/`, `tools/`, `.claude/`, `CLAUDE.md`, `README.md` —
-para poder completar justamente lo que el gate reclama.
+Los perfiles son componibles mediante `sdd.json`. Ver `examples/` y `profiles/`.
 
-Verificación manual en cualquier momento:
+## Compatibilidad y limitaciones
 
-```bash
-python tools/spec_lint.py
-```
+`tools/spec_lint.py` y `tools/spec_gate_hook.py` **siguen siendo herramientas legacy** asociadas al proyecto channel-cutting y a su disposición histórica de documentos. El hook no está conectado al validador multiproyecto y **no debe describirse como un bloqueo activo sobre otros repositorios**. No asumir que los hooks se activan sin configuración de Claude.
 
-## Reglas permanentes
+## Principios
 
-- **Los criterios de aceptación llevan número y unidad.** Sin métrica no son
-  verificables y la Etapa 5 (revisión) no tiene contra qué contrastar.
-- **Toda decisión irreversible lleva ADR**, con alternativas descartadas y su porqué.
-  Corregir una decisión de arquitectura tarde es el error más caro del ciclo.
-- **Decirle al agente qué evitar es tan importante como decirle qué hacer.** Los
-  guardarraíles viven en `docs/02-diseno/guardrails.md` y aplican a todo el trabajo.
-- **No inventar requisitos.** Si falta un dato, dejar el placeholder y señalar que
-  bloquea el avance.
-- Dominio sensible: un corte de canales impacta clientes reales. El plan de rollback
-  no es opcional.
-
-## Referencia
-
-Las etapas 3 a 7 (planificación, implementación, revisión, despliegue, operaciones)
-siguen el mismo marco y todavía no están instrumentadas en este repo.
+- No inventar requisitos ni decisiones.
+- Separar requisitos funcionales de decisiones de arquitectura.
+- Explicitar restricciones, observabilidad, seguridad y riesgo operativo según el proyecto.
+- Mantener trazabilidad entre decisiones, documentos y criterios verificables.
+- Etapas 3–7 aún no instrumentadas: planificación, implementación, revisión, despliegue y operaciones.
