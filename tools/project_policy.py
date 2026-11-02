@@ -8,10 +8,12 @@ import json
 import re
 import sys
 from pathlib import Path
+from profile_rules import validate_profiles, load_profiles
 
 DEFAULTS = {
     "schema_version": 1,
     "profile": "generic",
+    "profiles": [],
     "documents": {
         "requirements": "docs/01-requisitos/PRD.md",
         "architecture": "docs/02-diseno/arquitectura.md",
@@ -55,8 +57,11 @@ def configuration(root):
     config = json.loads(config_file.read_text(encoding="utf-8"))
     if not isinstance(config, dict) or config.get("schema_version") != 1:
         raise ValueError("sdd.json: schema_version debe ser 1")
-    if config.get("profile", "generic") != "generic":
-        raise ValueError("perfil no soportado por este validador: use generic")
+    # Legacy "profile" remains supported for backward compatibility.
+    legacy = config.get("profile", "generic")
+    if legacy != "generic" and "profiles" not in config:
+        config["profiles"] = [legacy]
+    load_profiles(config.get("profiles", []))
     settings = {**DEFAULTS, **config}
     settings["documents"] = {**DEFAULTS["documents"], **config.get("documents", {})}
     for key, value in settings["documents"].items():
@@ -144,6 +149,7 @@ def validate(root, stage="all"):
                         errors.append(f"ADR-{ref}: justificar alternativas con 'Por que no:'")
                 if re.search(r"^\s*[-*]\s+(?!.*ADR-\d{4}).+", pending, re.M):
                     errors.append("Decisiones pendientes: hay items sin referencia ADR")
+        validate_profiles(root, docs, cfg.get("profiles", []), stage, errors)
     except (ValueError, OSError, json.JSONDecodeError) as exc:
         errors.append(f"configuracion/lectura invalida: {exc}")
     return errors, warnings
