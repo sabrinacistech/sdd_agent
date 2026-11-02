@@ -1,52 +1,30 @@
 ---
 name: requisitos
-description: Etapa 1 del SDLC asistido por IA. Entrevista estructurada para definir qué se construye, por qué, para quién y con qué alcance en un corte/cancelación de canales, y producir docs/01-requisitos/PRD.md completo y verificable. Usar al arrancar una iniciativa, antes de cualquier decisión de diseño o de código.
+description: Etapa 1 del SDLC basado en especificaciones para proyectos de cualquier dominio. Elicita necesidades y produce el PRD del proyecto destino según sdd.json y sus perfiles.
 ---
 
-# Etapa 1 — Recolección de requisitos
+# Etapa 1 — Requisitos del proyecto destino
 
-Tu trabajo acá **no es escribir código ni proponer arquitectura**. Es conseguir que
-el PRD quede completo y que cada afirmación sea verificable.
+No escribir código ni decidir arquitectura durante esta etapa. No inventar requisitos.
+
+## Proyecto y configuración
+
+1. Identificar el directorio raíz del **proyecto destino** (no asumir que es el directorio del agente).
+2. Leer `<proyecto>/sdd.json`. Si falta, explicar cómo iniciar desde `examples/generic/sdd.json`; no inventar un perfil.
+3. Leer los perfiles configurados bajo `profiles/<nombre>/policy.json`, junto con cualquier skill de referencia aplicable.
+4. Leer el PRD del proyecto en la ruta declarada por `documents.requirements` (por defecto `docs/01-requisitos/PRD.md`). Conservar el contenido existente.
 
 ## Procedimiento
 
-1. Leé `docs/01-requisitos/PRD.md`. Si ya tiene contenido, trabajá sobre él; no lo
-   reescribas de cero.
-2. Corré `python tools/spec_lint.py --stage 1` para ver exactamente qué falta.
-3. Preguntá **de a un bloque por vez**, no las diez secciones juntas. Empezá por lo
-   que el linter marca como faltante.
-4. Después de cada bloque, escribí lo acordado en el PRD y volvé a correr el linter.
-5. Terminá cuando `--stage 1` devuelva `[OK]`.
+1. Ejecutar `python <sdd_agent>/tools/project_policy.py --project <proyecto> --stage 1`.
+2. Preguntar por bloques pequeños, empezando por requisitos faltantes o inciertos.
+3. Registrar la información confirmada y etiquetar los puntos pendientes; no completarlos por suposición.
+4. Incluir objetivos, actores, alcance y exclusiones, requisitos funcionales/no funcionales, dependencias, criterios de aceptación y decisiones pendientes de ADR.
+5. Aplicar las preguntas especializadas **solo** si el perfil correspondiente está seleccionado.
+6. Volver a ejecutar el validador hasta que no haya errores.
 
-## Preguntas obligatorias del dominio
+## Condiciones de salida
 
-Un corte de canales tiene riesgo de impacto directo sobre clientes. No cierres la
-etapa sin respuesta explícita a:
-
-- **Canales afectados**: enumerados uno por uno (homebanking, app mobile, ATM, call
-  center, cajas, APIs de terceros...). "Todos" no es una respuesta.
-- **Criterio de corte**: qué condición exacta dispara la cancelación, y quién la
-  evalúa. Si es manual, quién firma.
-- **Ventana y blast radius**: cuándo se ejecuta y a cuántos clientes/operaciones
-  alcanza en el peor caso.
-- **SLO/SLI impactados**: qué indicadores se degradan y cuánto es tolerable.
-- **Dependencias**: qué sistemas upstream alimentan la decisión y qué downstream
-  consume el resultado.
-- **Plan de rollback**: pasos concretos de reversión, cuánto tardan, y si el corte
-  es reversible o no. Si no es reversible, decilo explícitamente en esta sección.
-
-## Reglas de calidad
-
-- **Cada criterio de aceptación lleva número y unidad.** "Rápido" no es un criterio;
-  "p95 < 300 ms" sí. El linter rechaza los que no tengan métrica.
-- **Si el usuario no sabe una respuesta, no la inventes.** Dejá el placeholder y
-  decile que esa sección bloquea el avance. Un `TBD` visible es mejor que un
-  requisito fabricado.
-- **No propongas solución técnica.** Si aparece una decisión de arquitectura durante
-  la conversación, anotala en la sección 10 (Decisiones que requieren ADR) y seguí.
-  Se resuelve en `/diseno`.
-
-## Salida
-
-- `docs/01-requisitos/PRD.md` completo.
-- La sección 10 con la lista de decisiones que la Etapa 2 tiene que cerrar vía ADR.
+- PRD completo según configuración y perfiles.
+- Decisiones costosas de revertir identificadas para la Etapa 2.
+- El resultado del linter es una revisión **estructural**, no una aprobación de negocio ni autorización automática para implementar.

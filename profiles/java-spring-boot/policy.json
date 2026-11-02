@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "java-spring-boot",
+  "requirements": {
+    "sections": [],
+    "list_sections": [],
+    "metric_sections": []
+  },
+  "architecture": {
+    "sections": [
+      "Contratos API",
+      "Persistencia",
+      "Testing y observabilidad"
+    ],
+    "list_sections": [],
+    "metric_sections": []
+  }
+}

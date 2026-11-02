@@ -38,3 +38,26 @@ python -m unittest discover -s tests -v
 ## Diseño y siguientes pasos
 
 Ver `docs/architecture/ADR-0001-separacion-agente-proyecto.md` y `docs/architecture/ROADMAP.md`.
+
+## Perfiles por proyecto (PR #2)
+
+El proyecto destino selecciona perfiles componibles mediante `sdd.json`:
+
+```json
+{
+  "schema_version": 1,
+  "profiles": ["java-spring-boot", "channel-cutting"]
+}
+```
+
+Perfiles disponibles: `generic`, `java-spring-boot` y `channel-cutting`. Un proyecto sin `profiles` continúa usando las validaciones base del primer incremento. Se admite el campo `profile` por compatibilidad histórica.
+
+Ejemplos: `examples/java-spring-boot/sdd.json`, `examples/channel-cutting/sdd.json`. Las políticas declarativas se encuentran en `profiles/*/policy.json`. Las nuevas skills de requisitos y diseño trabajan sobre el proyecto **destino** y sus documentos, no sobre el repositorio del agente.
+
+**Limitaciones:** se validan secciones y algunos criterios documentales, pero no la calidad semántica de los diseños. `tools/spec_gate_hook.py` todavía no está integrado con los perfiles y no protege automáticamente la escritura de código del proyecto destino.
+
+Pruebas de regresión:
+
+```bash
+python -m unittest discover -s tests -v
+```
