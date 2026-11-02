@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "name": "channel-cutting",
+  "requirements": {
+    "sections": [
+      "Canales afectados",
+      "Criterio de corte",
+      "Ventana y blast radius",
+      "SLO/SLI impactados",
+      "Plan de rollback"
+    ],
+    "list_sections": [
+      "Canales afectados",
+      "Plan de rollback"
+    ],
+    "metric_sections": [
+      "Criterios de aceptacion"
+    ]
+  },
+  "architecture": {
+    "sections": [
+      "Seguridad",
+      "Restricciones tecnicas"
+    ],
+    "list_sections": [],
+    "metric_sections": []
+  }
+}
