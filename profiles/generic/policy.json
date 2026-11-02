@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "name": "generic",
+  "requirements": {
+    "sections": [],
+    "list_sections": [],
+    "metric_sections": []
+  },
+  "architecture": {
+    "sections": [],
+    "list_sections": [],
+    "metric_sections": []
+  }
+}
