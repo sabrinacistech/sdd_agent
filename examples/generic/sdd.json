@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "profile": "generic",
+  "documents": {
+    "requirements": "docs/01-requisitos/PRD.md",
+    "architecture": "docs/02-diseno/arquitectura.md",
+    "guardrails": "docs/02-diseno/guardrails.md",
+    "adr_directory": "docs/02-diseno/adr"
+  },
+  "requirements_sections": [
+    "Problema y objetivo",
+    "Usuarios y actores",
+    "Alcance",
+    "Requisitos funcionales",
+    "Requisitos no funcionales",
+    "Dependencias",
+    "Criterios de aceptacion",
+    "Decisiones pendientes"
+  ]
+}
