@@ -1,59 +1,29 @@
 ---
 name: diseno
-description: Etapa 2 del SDLC asistido por IA (Spec-Driven Development). Convierte el PRD en arquitectura, ADRs, guardarraíles y diagramas versionados bajo docs/02-diseno/. Usar después de /requisitos y antes de planificar o implementar, o cuando haya que cerrar una decisión técnica irreversible.
+description: Etapa 2 SDD reutilizable. Convierte el PRD del proyecto destino en arquitectura, ADR, guardrails y diagramas, aplicando perfiles de proyecto.
 ---
 
-# Etapa 2 — Diseño del sistema (Spec-Driven Development)
+# Etapa 2 — Diseño técnico del proyecto destino
 
-El objetivo es dejar escrito, con suficiente detalle, **cómo debe construirse el
-sistema y qué no debe hacerse**, para que la implementación sea ejecución y no
-interpretación.
+## Precondiciones
 
-## Precondición
-
-Corré `python tools/spec_lint.py --stage 1`. Si la Etapa 1 no pasa, **parala acá**:
-diseñar sobre requisitos incompletos es exactamente el error caro que esta compuerta
-existe para evitar. Decile al usuario qué falta y ofrecé `/requisitos`.
+1. Resolver la raíz del proyecto destino y leer su `sdd.json`.
+2. Ejecutar `python <sdd_agent>/tools/project_policy.py --project <proyecto> --stage 1`.
+3. Si la validación falla, detener el diseño y completar requisitos mediante `/requisitos`.
+4. No suponer aprobaciones humanas por un resultado `[OK]`.
 
 ## Procedimiento
 
-1. Leé `docs/01-requisitos/PRD.md` entero, con atención a la sección 10.
-2. Completá `docs/02-diseno/arquitectura.md`: vista general, componentes, stack,
-   patrones, seguridad, restricciones técnicas y diagramas.
-3. Por **cada** decisión de la sección 10 del PRD, creá un ADR en
-   `docs/02-diseno/adr/ADR-NNNN-slug.md` a partir de `ADR-0000-plantilla.md`.
-   Numerá correlativamente y actualizá la referencia en el PRD.
-4. Completá `docs/02-diseno/guardrails.md`.
-5. Dibujá el diagrama en `docs/02-diseno/diagramas/*.mmd` (Mermaid, versionable) y
-   referencialo desde la sección 7 de `arquitectura.md`.
-6. Corré `python tools/spec_lint.py` hasta que devuelva `[OK]`.
+1. Leer íntegramente el PRD (ruta `documents.requirements`).
+2. Proponer componentes, límites, contratos, persistencia, seguridad, operaciones y patrones apropiados al contexto.
+3. Aplicar solo las reglas de los perfiles configurados en `sdd.json`; las referencias especializadas (por ejemplo `arquetipos-pom-paas`) son opcionales y deben justificarse en su contexto.
+4. Escribir `documents.architecture` y `documents.guardrails` según la configuración.
+5. Documentar ADR por decisión relevante con contexto, alternativas descartadas, consecuencias y estado real. **Nunca marcar `Aceptada` sin aprobación de la persona responsable**.
+6. Crear diagramas Mermaid versionados y enlazarlos con rutas relativas al documento de arquitectura.
+7. Ejecutar `python <sdd_agent>/tools/project_policy.py --project <proyecto> --stage 2` y corregir errores.
 
-## Qué cuenta como decisión que necesita ADR
+## Condiciones de salida
 
-Una decisión necesita ADR si **revertirla después cuesta caro**: elección de
-mecanismo de corte, modelo de datos del estado del canal, estrategia de
-idempotencia, sincrónico vs. asincrónico, dónde vive la fuente de verdad, cómo se
-propaga el corte a cada canal, política de reintentos.
-
-No necesita ADR lo que se cambia con un commit: nombres, formato de logs, layout de
-carpetas.
-
-## Reglas de calidad
-
-- **Un ADR sin alternativas descartadas no es un ADR.** Cada uno debe explicar al
-  menos una opción rechazada con `Por qué no:`. El linter lo exige.
-- **El estado del ADR debe ser `Aceptada`** para que la compuerta deje implementar.
-  Mientras esté en `Propuesta`, el gate sigue cerrado: eso es intencional.
-- **Los guardarraíles son la parte que más se saltea y la que más rinde.** Escribí
-  qué está *prohibido* (mínimo 3 items) con el mismo cuidado que lo obligatorio. Si
-  no sabés qué prohibir, mirá el plan de rollback del PRD: todo lo que lo rompa va
-  a la lista.
-- **Seguridad no es una sección de relleno.** En un corte de canales: quién puede
-  disparar el corte, cómo se audita, qué datos de cliente se tocan.
-
-## Salida
-
-- `docs/02-diseno/arquitectura.md` completo.
-- Un ADR aceptado por cada decisión del PRD.
-- `docs/02-diseno/guardrails.md` con prohibiciones explícitas.
-- Al menos un diagrama `.mmd` existente y referenciado.
+- Arquitectura, guardrails y diagramas completos.
+- ADR referenciados desde `Decisiones pendientes` del PRD y aprobados por quien corresponda.
+- El validador comprueba estructura, no corrección técnica integral.
