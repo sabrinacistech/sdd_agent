@@ -1,66 +1,82 @@
-"""Hook PreToolUse: impide escribir codigo mientras la spec este incompleta.
+"""PreToolUse gate for a *target project* with sdd.json.
 
-Se dispara antes de Write/Edit. Deja pasar libremente la escritura de la propia
-spec (docs/, tools/, .claude/, CLAUDE.md, README.md) para que se pueda completar
-lo que falta; bloquea cualquier otro archivo si spec_lint encuentra errores.
-
-Salida 2 = bloquear y devolverle el motivo al agente.
+Usage (called by Claude Code): python spec_gate_hook.py --project <path>
+The event is JSON on stdin. Exit 2 + stderr denies a tool operation.
+A project hook is a workflow guard, NOT a security sandbox.
 """
-
+import argparse
 import json
-import os
 import sys
+from pathlib import Path
 
-RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(RAIZ, "tools"))
+from project_policy import validate
 
-from spec_lint import run_checks  # noqa: E402
-
-# Rutas que NO son codigo de producto: siempre se pueden editar.
-EXENTAS = ("docs/", "tools/", ".claude/", ".git/")
-ARCHIVOS_EXENTOS = ("claude.md", "readme.md", ".gitignore", ".gitattributes")
+FILE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
+SHELL_TOOLS = {"Bash", "PowerShell"}
+SUPPORTED = FILE_TOOLS | SHELL_TOOLS
 
 
-def exenta(ruta_abs):
+def decide(project, event):
+    """Return (allowed, explanation); deny if input is ambiguous or invalid."""
+    root = Path(project).resolve()
+    if not root.is_dir():
+        return False, "La raiz del proyecto destino no existe."
+    if not isinstance(event, dict):
+        return False, "Evento PreToolUse invalido."
+    name = event.get("tool_name")
+    data = event.get("tool_input")
+    if name not in SUPPORTED or not isinstance(data, dict):
+        return False, "Herramienta no reconocida por el Spec Gate."
+    # A pinned root prevents accidental use of the agent repo as target.
+    if name in FILE_TOOLS:
+        destination = data.get("notebook_path") if name == "NotebookEdit" else data.get("file_path")
+        if not isinstance(destination, str) or not destination.strip() or "\x00" in destination:
+            return False, "Falta ruta de archivo valida."
+        path = Path(destination)
+        # Claude provides absolute file paths; relative paths use event cwd.
+        if not path.is_absolute():
+            cwd = event.get("cwd")
+            if not isinstance(cwd, str) or not cwd.strip():
+                return False, "Ruta relativa sin cwd verificable."
+            path = Path(cwd) / path
+        try:
+            path = path.resolve()
+            relative = path.relative_to(root)
+        except (ValueError, OSError, RuntimeError):
+            return False, "La operacion apunta fuera del proyecto SDD configurado."
+        # Documentation and configuration can be edited to close the gate;
+        # never exempt code/tools/hooks or paths outside the target project.
+        if relative.parts and relative.parts[0] == "docs" and len(relative.parts) > 1:
+            return True, ""
+        if relative == Path("sdd.json"):
+            return True, ""
+
+    errors, _ = validate(root, "all")
+    if errors:
+        lines = "\n".join(" - " + x for x in errors[:12])
+        extra = f"\n ... y {len(errors) - 12} errores mas" if len(errors) > 12 else ""
+        return False, (
+            "SPEC GATE: requisitos/diseno incompletos en el proyecto destino.\n"
+            f"{lines}{extra}\n"
+            "Completar documentos mediante Write/Edit y validar con "
+            "python tools/project_policy.py --project <proyecto>. "
+            "Los comandos Bash/PowerShell permanecen bloqueados mientras el gate este cerrado."
+        )
+    return True, ""
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--project", required=True, help="Raiz absoluta del proyecto destino")
+    args = parser.parse_args(argv)
     try:
-        rel = os.path.relpath(ruta_abs, RAIZ).replace("\\", "/")
-    except ValueError:
-        # Otra unidad de disco: fuera del proyecto, no nos corresponde bloquear.
-        return True
-    if rel.startswith(".."):
-        return True
-    if os.path.basename(rel).lower() in ARCHIVOS_EXENTOS:
-        return True
-    return any(rel.startswith(p) for p in EXENTAS)
-
-
-def main():
-    try:
-        evento = json.load(sys.stdin)
-    except (json.JSONDecodeError, ValueError):
-        return 0  # Ante un payload que no entendemos, no bloqueamos.
-
-    destino = (evento.get("tool_input") or {}).get("file_path")
-    if not destino or exenta(os.path.abspath(destino)):
+        event = json.load(sys.stdin)
+        allowed, reason = decide(args.project, event)
+    except (ValueError, OSError, json.JSONDecodeError) as exc:
+        allowed, reason = False, f"SPEC GATE: evento invalido: {exc}"
+    if allowed:
         return 0
-
-    errores, _ = run_checks(RAIZ, "all")
-    if not errores:
-        return 0
-
-    detalle = "\n".join(f"  - {e}" for e in errores[:10])
-    sobrantes = len(errores) - 10
-    if sobrantes > 0:
-        detalle += f"\n  ... y {sobrantes} error(es) mas."
-
-    print(
-        "SPEC GATE: no se puede implementar todavia.\n"
-        f"La spec de Requisitos/Diseno esta incompleta ({len(errores)} error(es)):\n"
-        f"{detalle}\n\n"
-        "Completa docs/01-requisitos/ y docs/02-diseno/ antes de escribir codigo. "
-        "Verifica con: python tools/spec_lint.py",
-        file=sys.stderr,
-    )
+    print(reason, file=sys.stderr)
     return 2
 
 
