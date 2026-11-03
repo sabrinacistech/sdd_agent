@@ -69,7 +69,7 @@ class GateTests(unittest.TestCase):
     def test_shell_allowed_when_complete(self):
         self.make_complete()
         self.assertTrue(decide(self.root, self.event("Bash", command="python -m unittest"))[0])
-        self.assertTrue(decide(self.root, self.event("NotebookEdit", file_path=str(self.root / "notebook.ipynb")))[0])
+        self.assertTrue(decide(self.root, self.event("NotebookEdit", notebook_path=str(self.root / "notebook.ipynb")))[0])
 
     def test_missing_or_unknown_payload_denied(self):
         self.assertFalse(decide(self.root, {})[0])
@@ -94,7 +94,7 @@ class GateTests(unittest.TestCase):
         self.assertEqual(cfg["permissions"]["allow"], ["Read"])
         self.assertEqual(len(cfg["hooks"]["PreToolUse"]), 2)
         self.assertEqual(cfg["hooks"]["PreToolUse"][1]["matcher"], MARKER)
-        self.assertIn(str(self.root), cfg["hooks"]["PreToolUse"][1]["hooks"][0]["command"])
+        self.assertIn(str(self.root), cfg["hooks"]["PreToolUse"][1]["hooks"][0]["args"])\n        self.assertEqual(cfg["hooks"]["PreToolUse"][1]["hooks"][0]["onFailure"], "block")
 
     def test_installer_requires_sdd_config(self):
         (self.root / "sdd.json").unlink()
