@@ -61,3 +61,12 @@ Pruebas de regresión:
 ```bash
 python -m unittest discover -s tests -v
 ```
+
+## PR #3 — Activar Spec Gate en cada proyecto
+
+```powershell
+python tools/install_spec_gate.py --project "C:\\repoSRE\\mi-proyecto"
+python -m unittest discover -s tests -v
+```
+
+El instalador modifica `.claude/settings.local.json` del **proyecto destino**, preserva hooks previos y usa `onFailure: block`. Debe ejecutarse en cada computadora donde se quiera activar el control y reiniciar Claude Code. Más información en `docs/USO_SPEC_GATE.md`.
