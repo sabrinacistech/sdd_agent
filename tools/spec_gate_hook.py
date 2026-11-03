@@ -29,9 +29,9 @@ def decide(project, event):
         return False, "Herramienta no reconocida por el Spec Gate."
     # A pinned root prevents accidental use of the agent repo as target.
     if name in FILE_TOOLS:
-        destination = data.get("file_path")
+        destination = data.get("notebook_path") if name == "NotebookEdit" else data.get("file_path")
         if not isinstance(destination, str) or not destination.strip() or "\x00" in destination:
-            return False, "Falta file_path valido."
+            return False, "Falta ruta de archivo valida."
         path = Path(destination)
         # Claude provides absolute file paths; relative paths use event cwd.
         if not path.is_absolute():
