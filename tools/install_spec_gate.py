@@ -24,19 +24,19 @@ def install(project, python_exe=None, hook_file=None):
         raise ValueError(f"no existe el proyecto: {root}")
     if not (root / "sdd.json").is_file():
         raise ValueError(f"falta {root / 'sdd.json'}; configure el proyecto antes de instalar el hook")
-    settings_path = root / ".claude" / "settings.json"
+    settings_path = root / ".claude" / "settings.local.json"
     if settings_path.is_file():
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
         if not isinstance(settings, dict):
-            raise ValueError("settings.json debe ser un objeto JSON")
+            raise ValueError("settings.local.json debe ser un objeto JSON")
     else:
         settings = {}
     hooks = settings.setdefault("hooks", {})
     if not isinstance(hooks, dict):
-        raise ValueError("settings.json: hooks debe ser un objeto")
+        raise ValueError("settings.local.json: hooks debe ser un objeto")
     pre = hooks.setdefault("PreToolUse", [])
     if not isinstance(pre, list):
-        raise ValueError("settings.json: hooks.PreToolUse debe ser lista")
+        raise ValueError("settings.local.json: hooks.PreToolUse debe ser lista")
 
     executable, args = command_for(root, python_exe, hook_file)
     group = {
@@ -58,7 +58,7 @@ def install(project, python_exe=None, hook_file=None):
         del pre[index]
     pre.append(group)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = settings_path.with_name("settings.json.tmp")
+    tmp = settings_path.with_name("settings.local.json.tmp")
     tmp.write_text(json.dumps(settings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     tmp.replace(settings_path)
     return settings_path
