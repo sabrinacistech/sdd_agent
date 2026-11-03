@@ -84,7 +84,7 @@ class GateTests(unittest.TestCase):
         self.assertFalse(decide(self.root, self.event("Write", file_path=str(self.root / "src/a.java")))[0])
 
     def test_installer_preserves_other_hooks_and_is_idempotent(self):
-        path = self.root / ".claude/settings.json"
+        path = self.root / ".claude/settings.local.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"permissions": {"allow": ["Read"]},
                                     "hooks": {"PreToolUse": [{"matcher": "Other", "hooks": []}]}}))
@@ -94,7 +94,8 @@ class GateTests(unittest.TestCase):
         self.assertEqual(cfg["permissions"]["allow"], ["Read"])
         self.assertEqual(len(cfg["hooks"]["PreToolUse"]), 2)
         self.assertEqual(cfg["hooks"]["PreToolUse"][1]["matcher"], MARKER)
-        self.assertIn(str(self.root), cfg["hooks"]["PreToolUse"][1]["hooks"][0]["args"])\n        self.assertEqual(cfg["hooks"]["PreToolUse"][1]["hooks"][0]["onFailure"], "block")
+        self.assertIn(str(self.root), cfg["hooks"]["PreToolUse"][1]["hooks"][0]["args"])
+        self.assertEqual(cfg["hooks"]["PreToolUse"][1]["hooks"][0]["onFailure"], "block")
 
     def test_installer_requires_sdd_config(self):
         (self.root / "sdd.json").unlink()
