@@ -49,7 +49,7 @@ class GateTests(unittest.TestCase):
                 self.assertTrue(decide(self.root, self.event("Edit", file_path=str(self.root / rel)))[0])
 
     def test_does_not_exempt_hooks_tools_or_readme(self):
-        for rel in (".claude/settings.json", "tools/evil.py", "README.md"):
+        for rel in (".claude/settings.local.json", "tools/evil.py", "README.md"):
             with self.subTest(rel=rel):
                 self.assertFalse(decide(self.root, self.event("Write", file_path=str(self.root / rel)))[0])
 
