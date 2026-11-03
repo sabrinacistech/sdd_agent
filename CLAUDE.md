@@ -30,7 +30,7 @@ Los perfiles son componibles mediante `sdd.json`. Ver `examples/` y `profiles/`.
 
 ## Compatibilidad y limitaciones
 
-`tools/spec_lint.py` y `tools/spec_gate_hook.py` **siguen siendo herramientas legacy** asociadas al proyecto channel-cutting y a su disposición histórica de documentos. El hook no está conectado al validador multiproyecto y **no debe describirse como un bloqueo activo sobre otros repositorios**. No asumir que los hooks se activan sin configuración de Claude.
+`tools/spec_lint.py` se conserva como validador legacy del dominio channel-cutting. `tools/spec_gate_hook.py` ahora usa `project_policy.py` para validar el **proyecto destino**, pero **solo se activa tras instalarlo en ese proyecto** con `python tools/install_spec_gate.py --project <ruta-proyecto>` y reiniciar Claude Code. Ver `docs/USO_SPEC_GATE.md`. El hook es un control de flujo para herramientas cubiertas, no una barrera de seguridad universal ni una aprobación humana.
 
 ## Principios
 
