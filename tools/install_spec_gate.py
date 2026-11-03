@@ -6,9 +6,6 @@ The installer preserves unrelated .claude/settings.json fields and hooks.
 """
 import argparse
 import json
-import os
-import shlex
-import subprocess
 import sys
 from pathlib import Path
 
@@ -18,8 +15,7 @@ MARKER = "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell"
 def command_for(project, interpreter=None, hook_file=None):
     interpreter = str(Path(interpreter or sys.executable).resolve())
     hook_file = str(Path(hook_file or Path(__file__).with_name("spec_gate_hook.py")).resolve())
-    args = [interpreter, hook_file, "--project", str(project.resolve())]
-    return subprocess.list2cmdline(args) if os.name == "nt" else shlex.join(args)
+    return interpreter, [hook_file, "--project", str(project.resolve())]
 
 
 def install(project, python_exe=None, hook_file=None):
@@ -42,17 +38,20 @@ def install(project, python_exe=None, hook_file=None):
     if not isinstance(pre, list):
         raise ValueError("settings.json: hooks.PreToolUse debe ser lista")
 
-    new_command = command_for(root, python_exe, hook_file)
+    executable, args = command_for(root, python_exe, hook_file)
     group = {
         "matcher": MARKER,
-        "hooks": [{"type": "command", "command": new_command, "timeout": 15}],
+        "hooks": [{"type": "command", "command": executable, "args": args,
+                   "timeout": 15, "onFailure": "block"}],
     }
     # Replace only a previous installer-managed record for this exact project.
     # Do not erase other PreToolUse hooks.
     previous = [
         i for i, item in enumerate(pre)
         if isinstance(item, dict) and item.get("matcher") == MARKER
-        and any(isinstance(h, dict) and "spec_gate_hook.py" in h.get("command", "")
+        and any(isinstance(h, dict) and
+                ("spec_gate_hook.py" in h.get("command", "") or
+                 "spec_gate_hook.py" in " ".join(h.get("args", [])))
                 for h in item.get("hooks", []) if isinstance(item.get("hooks"), list))
     ]
     for index in reversed(previous):
