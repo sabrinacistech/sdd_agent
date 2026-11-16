@@ -8,7 +8,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from profile_rules import validate_profiles, load_profiles
+from profile_rules import PLACEHOLDER, load_profiles, normalize, sections, validate_profiles
 
 DEFAULTS = {
     "schema_version": 1,
@@ -29,14 +29,12 @@ DEFAULTS = {
         "Vista general", "Componentes", "Stack y librerias",
         "Patrones de arquitectura", "Seguridad", "Restricciones tecnicas", "Diagramas",
     ],
+    # PRD section that lists decisions requiring an ADR.
+    "decisions_section": "Decisiones pendientes",
 }
-PLACEHOLDER = re.compile(r"\b(?:TBD|TODO|FIXME|PENDIENTE|COMPLETAR)\b|<(?:por definir|completar|pendiente)>", re.I)
 ADR_REF = re.compile(r"ADR-(\d{4})", re.I)
-HEADING = re.compile(r"^##\s+(?:\d+\.\s*)?(.+?)\s*$", re.M)
-
-
-def normalize(text):
-    return " ".join(text.casefold().translate(str.maketrans("áéíóúüñ", "aeiouun")).split())
+ADR_ACCEPTED = re.compile(r"^aceptad[ao]\b")
+ADR_SECTIONS = ["Estado", "Contexto", "Decision", "Alternativas descartadas", "Consecuencias"]
 
 
 def resolve_within(root, value):
@@ -63,6 +61,8 @@ def configuration(root):
         config["profiles"] = [legacy]
     load_profiles(config.get("profiles", []))
     settings = {**DEFAULTS, **config}
+    if not isinstance(config.get("documents", {}), dict):
+        raise ValueError("documents debe ser un objeto")
     settings["documents"] = {**DEFAULTS["documents"], **config.get("documents", {})}
     for key, value in settings["documents"].items():
         if not isinstance(value, str):
@@ -71,7 +71,20 @@ def configuration(root):
     for key in ("requirements_sections", "architecture_sections"):
         if not isinstance(settings[key], list) or not settings[key] or not all(isinstance(s, str) and s.strip() for s in settings[key]):
             raise ValueError(f"{key} debe ser lista no vacia de titulos")
+    if not isinstance(settings["decisions_section"], str) or not settings["decisions_section"].strip():
+        raise ValueError("decisions_section debe ser un titulo no vacio")
     return settings
+
+
+def spec_paths(root):
+    """Paths the spec gate lets Claude edit to complete the specification.
+
+    Returns (document files, document directories) resolved inside the project.
+    """
+    docs = configuration(root)["documents"]
+    files = {resolve_within(root, docs[k]) for k in ("requirements", "architecture", "guardrails")}
+    dirs = {resolve_within(root, docs["adr_directory"])}
+    return files, dirs
 
 
 def read_doc(root, rel, errors):
@@ -80,12 +93,6 @@ def read_doc(root, rel, errors):
         errors.append(f"{rel}: no existe")
         return None
     return path.read_text(encoding="utf-8")
-
-
-def sections(text):
-    matches = list(HEADING.finditer(text))
-    return {normalize(m.group(1)): text[m.end():matches[i+1].start() if i+1 < len(matches) else len(text)].strip()
-            for i, m in enumerate(matches)}
 
 
 def check_sections(text, required, name, errors):
@@ -101,12 +108,49 @@ def check_sections(text, required, name, errors):
     return found
 
 
+def check_diagrams(root, docs, found, errors):
+    diagram_text = found.get(normalize("Diagramas"), "")
+    references = re.findall(r"\(([^)]+\.mmd)\)", diagram_text)
+    if not references:
+        errors.append(f"{docs['architecture']}: falta referencia Mermaid .mmd")
+    for ref in references:
+        relative_to_arch = str(Path(docs["architecture"]).parent / ref)
+        try:
+            exists = resolve_within(root, relative_to_arch).is_file()
+        except ValueError:
+            errors.append(f"diagrama con ruta invalida o fuera del proyecto: {ref}")
+            continue
+        if not exists:
+            errors.append(f"diagrama no encontrado: {ref}")
+
+
+def check_adrs(root, docs, decisions_title, prd, errors):
+    pending = sections(prd).get(normalize(decisions_title), "")
+    refs = {r for r in ADR_REF.findall(pending)}
+    adr_dir = resolve_within(root, docs["adr_directory"])
+    for ref in sorted(refs):
+        candidates = list(adr_dir.glob(f"ADR-{ref}-*.md")) if adr_dir.is_dir() else []
+        if len(candidates) != 1:
+            errors.append(f"ADR-{ref}: se espera exactamente un documento")
+            continue
+        content = candidates[0].read_text(encoding="utf-8")
+        body = check_sections(content, ADR_SECTIONS, candidates[0].relative_to(root).as_posix(), errors)
+        state = normalize(body.get("estado", ""))
+        if not ADR_ACCEPTED.match(state):
+            errors.append(f"ADR-{ref}: Estado debe ser Aceptada")
+        if "por que no:" not in normalize(body.get("alternativas descartadas", "")):
+            errors.append(f"ADR-{ref}: justificar alternativas con 'Por que no:'")
+    if re.search(r"^\s*[-*]\s+(?!.*ADR-\d{4}).+", pending, re.M | re.I):
+        errors.append(f"{decisions_title}: hay items sin referencia ADR")
+
+
 def validate(root, stage="all"):
     root = Path(root).resolve()
     errors, warnings = [], []
     try:
         cfg = configuration(root)
         docs = cfg["documents"]
+        prd = None
         if stage in ("1", "all"):
             prd = read_doc(root, docs["requirements"], errors)
             if prd is not None:
@@ -115,14 +159,7 @@ def validate(root, stage="all"):
             arq = read_doc(root, docs["architecture"], errors)
             if arq is not None:
                 found = check_sections(arq, cfg["architecture_sections"], docs["architecture"], errors)
-                diagram_text = found.get(normalize("Diagramas"), "")
-                references = re.findall(r"\(([^)]+\.mmd)\)", diagram_text)
-                if not references:
-                    errors.append(f"{docs['architecture']}: falta referencia Mermaid .mmd")
-                for ref in references:
-                    relative_to_arch = str(Path(docs["architecture"]).parent / ref)
-                    if not resolve_within(root, relative_to_arch).is_file():
-                        errors.append(f"diagrama no encontrado: {ref}")
+                check_diagrams(root, docs, found, errors)
             guard = read_doc(root, docs["guardrails"], errors)
             if guard is not None:
                 found = sections(guard)
@@ -130,27 +167,13 @@ def validate(root, stage="all"):
                     body = found.get(normalize(title), "")
                     if not re.search(r"^\s*[-*]\s+\S", body, re.M) or PLACEHOLDER.search(body):
                         errors.append(f"{docs['guardrails']}: completar {title} con items")
-            prd = read_doc(root, docs["requirements"], errors)
+            if stage == "2":
+                # In "all" the PRD was already read and, if missing, reported once.
+                prd = read_doc(root, docs["requirements"], errors)
             if prd is not None:
-                pending = sections(prd).get(normalize("Decisiones pendientes"), "")
-                refs = set(ADR_REF.findall(pending))
-                for ref in sorted(refs):
-                    adr_dir = resolve_within(root, docs["adr_directory"])
-                    candidates = list(adr_dir.glob(f"ADR-{ref}-*.md")) if adr_dir.is_dir() else []
-                    if len(candidates) != 1:
-                        errors.append(f"ADR-{ref}: se espera exactamente un documento")
-                        continue
-                    content = candidates[0].read_text(encoding="utf-8")
-                    body = check_sections(content, ["Estado", "Contexto", "Decision", "Alternativas descartadas", "Consecuencias"], str(candidates[0].relative_to(root)), errors)
-                    state = normalize(body.get("estado", "")).strip()
-                    if state not in ("aceptada", "aceptado"):
-                        errors.append(f"ADR-{ref}: Estado debe ser Aceptada")
-                    if "por que no:" not in normalize(body.get("alternativas descartadas", "")):
-                        errors.append(f"ADR-{ref}: justificar alternativas con 'Por que no:'")
-                if re.search(r"^\s*[-*]\s+(?!.*ADR-\d{4}).+", pending, re.M):
-                    errors.append("Decisiones pendientes: hay items sin referencia ADR")
+                check_adrs(root, docs, cfg["decisions_section"], prd, errors)
         validate_profiles(root, docs, cfg.get("profiles", []), stage, errors)
-    except (ValueError, OSError, json.JSONDecodeError) as exc:
+    except (ValueError, OSError) as exc:  # JSONDecodeError subclasses ValueError
         errors.append(f"configuracion/lectura invalida: {exc}")
     return errors, warnings
 

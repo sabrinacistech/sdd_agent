@@ -43,10 +43,29 @@ class GateTests(unittest.TestCase):
         self.assertFalse(allowed)
         self.assertIn("SPEC GATE", reason)
 
-    def test_allows_docs_and_sdd_json_to_fix_spec(self):
-        for rel in ("docs/01-requisitos/PRD.md", "docs/02-diseno/arquitectura.md", "sdd.json"):
+    def test_allows_docs_to_fix_spec(self):
+        for rel in ("docs/01-requisitos/PRD.md", "docs/02-diseno/arquitectura.md"):
             with self.subTest(rel=rel):
                 self.assertTrue(decide(self.root, self.event("Edit", file_path=str(self.root / rel)))[0])
+
+    def test_sdd_json_locked_while_gate_closed(self):
+        allowed, reason = decide(self.root, self.event("Edit", file_path=str(self.root / "sdd.json")))
+        self.assertFalse(allowed)
+        self.assertIn("persona responsable", reason)
+        self.make_complete()
+        self.assertTrue(decide(self.root, self.event("Edit", file_path=str(self.root / "sdd.json")))[0])
+
+    def test_configured_document_paths_are_editable(self):
+        cfg = json.loads((self.root / "sdd.json").read_text())
+        cfg["documents"] = {"requirements": "spec/PRD.md", "architecture": "spec/arq.md",
+                            "guardrails": "spec/guard.md", "adr_directory": "spec/adr"}
+        (self.root / "sdd.json").write_text(json.dumps(cfg))
+        for rel in ("spec/PRD.md", "spec/arq.md", "spec/guard.md", "spec/adr/ADR-0001-x.md", "spec/diag/main.mmd"):
+            with self.subTest(rel=rel):
+                self.assertTrue(decide(self.root, self.event("Write", file_path=str(self.root / rel)))[0])
+        for rel in ("spec/other.py", "spec/adr"):
+            with self.subTest(rel=rel):
+                self.assertFalse(decide(self.root, self.event("Write", file_path=str(self.root / rel)))[0])
 
     def test_does_not_exempt_hooks_tools_or_readme(self):
         for rel in (".claude/settings.local.json", "tools/evil.py", "README.md"):
@@ -96,6 +115,18 @@ class GateTests(unittest.TestCase):
         self.assertEqual(cfg["hooks"]["PreToolUse"][1]["matcher"], MARKER)
         self.assertIn(str(self.root), cfg["hooks"]["PreToolUse"][1]["hooks"][0]["args"])
         self.assertEqual(cfg["hooks"]["PreToolUse"][1]["hooks"][0]["onFailure"], "block")
+
+    def test_installer_replaces_entry_with_legacy_matcher(self):
+        path = self.root / ".claude/settings.local.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        legacy = {"matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell",
+                  "hooks": [{"type": "command", "command": "python", "args": ["/x/spec_gate_hook.py"]}]}
+        odd = {"matcher": "Other", "hooks": [{"type": "command", "command": "x", "args": [1, None]}]}
+        path.write_text(json.dumps({"hooks": {"PreToolUse": [legacy, odd]}}))
+        install(self.root)
+        pre = json.loads(path.read_text())["hooks"]["PreToolUse"]
+        self.assertEqual([g["matcher"] for g in pre], ["Other", MARKER])
+        self.assertNotIn("MultiEdit", MARKER)
 
     def test_installer_requires_sdd_config(self):
         (self.root / "sdd.json").unlink()

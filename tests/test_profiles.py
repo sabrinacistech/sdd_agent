@@ -76,6 +76,16 @@ Latencia p95
         errors, _ = validate(self.root, "2")
         self.assertTrue(any("Contratos API" in e for e in errors))
 
+    def test_profile_sections_reject_placeholders(self):
+        self.config["profiles"] = ["java-spring-boot"]
+        self.save_config()
+        self.write("docs/02-diseno/arquitectura.md",
+                   "## Componentes\nServicio X\n## Diagramas\n[Diagrama](diagramas/main.mmd)\n"
+                   "## Contratos API\nTBD\n## Persistencia\nPostgreSQL\n## Testing y observabilidad\nOTel\n")
+        errors, _ = validate(self.root, "2")
+        self.assertTrue(any("[java-spring-boot]" in e and "Contratos API" in e for e in errors))
+        self.assertFalse(any("Persistencia" in e for e in errors))
+
     def test_profiles_can_combine(self):
         self.config["profiles"] = ["channel-cutting", "java-spring-boot"]
         self.save_config()

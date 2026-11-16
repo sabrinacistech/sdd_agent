@@ -9,7 +9,22 @@ import json
 import sys
 from pathlib import Path
 
-MARKER = "Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell"
+MARKER = "Write|Edit|NotebookEdit|Bash|PowerShell"
+HOOK_NAME = "spec_gate_hook.py"
+
+
+def _is_spec_gate(item):
+    """True for a PreToolUse group managed by this installer (any older matcher)."""
+    if not isinstance(item, dict) or not isinstance(item.get("hooks"), list):
+        return False
+    for hook in item["hooks"]:
+        if not isinstance(hook, dict):
+            continue
+        args = hook.get("args")
+        parts = [hook.get("command")] + (args if isinstance(args, list) else [])
+        if any(isinstance(p, str) and HOOK_NAME in p for p in parts):
+            return True
+    return False
 
 
 def command_for(project, interpreter=None, hook_file=None):
@@ -44,18 +59,9 @@ def install(project, python_exe=None, hook_file=None):
         "hooks": [{"type": "command", "command": executable, "args": args,
                    "timeout": 15, "onFailure": "block"}],
     }
-    # Replace only a previous installer-managed record for this exact project.
-    # Do not erase other PreToolUse hooks.
-    previous = [
-        i for i, item in enumerate(pre)
-        if isinstance(item, dict) and item.get("matcher") == MARKER
-        and any(isinstance(h, dict) and
-                ("spec_gate_hook.py" in h.get("command", "") or
-                 "spec_gate_hook.py" in " ".join(h.get("args", [])))
-                for h in item.get("hooks", []) if isinstance(item.get("hooks"), list))
-    ]
-    for index in reversed(previous):
-        del pre[index]
+    # Replace previous installer-managed records (including ones written with an
+    # older matcher). Do not erase other PreToolUse hooks.
+    pre[:] = [item for item in pre if not _is_spec_gate(item)]
     pre.append(group)
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     tmp = settings_path.with_name("settings.local.json.tmp")
@@ -70,7 +76,7 @@ def main():
     args = parser.parse_args()
     try:
         path = install(args.project)
-    except (ValueError, OSError, json.JSONDecodeError) as exc:
+    except (ValueError, OSError) as exc:  # JSONDecodeError subclasses ValueError
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 1
     print(f"[OK] Hook instalado en {path}; reinicie Claude Code para cargarlo.")

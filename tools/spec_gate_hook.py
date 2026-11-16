@@ -9,11 +9,30 @@ import json
 import sys
 from pathlib import Path
 
-from project_policy import validate
+from project_policy import spec_paths, validate
 
 FILE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
 SHELL_TOOLS = {"Bash", "PowerShell"}
 SUPPORTED = FILE_TOOLS | SHELL_TOOLS
+
+
+def is_spec_document(root, path):
+    """True if path is a specification document Claude may edit to close the gate.
+
+    Covers docs/, the documents and ADR directory declared in sdd.json, and Mermaid
+    diagrams. sdd.json itself is NOT included: changing the policy while the gate
+    is closed is a human decision.
+    """
+    relative = path.relative_to(root)
+    if relative.parts and relative.parts[0] == "docs" and len(relative.parts) > 1:
+        return True
+    if path.suffix.lower() == ".mmd":
+        return True
+    try:
+        files, dirs = spec_paths(root)
+    except (ValueError, OSError):
+        return False  # Invalid sdd.json: only docs/ remains editable.
+    return path in files or any(path.is_relative_to(d) and path != d for d in dirs)
 
 
 def decide(project, event):
@@ -27,6 +46,7 @@ def decide(project, event):
     data = event.get("tool_input")
     if name not in SUPPORTED or not isinstance(data, dict):
         return False, "Herramienta no reconocida por el Spec Gate."
+    path = None
     # A pinned root prevents accidental use of the agent repo as target.
     if name in FILE_TOOLS:
         destination = data.get("notebook_path") if name == "NotebookEdit" else data.get("file_path")
@@ -41,26 +61,29 @@ def decide(project, event):
             path = Path(cwd) / path
         try:
             path = path.resolve()
-            relative = path.relative_to(root)
+            path.relative_to(root)
         except (ValueError, OSError, RuntimeError):
             return False, "La operacion apunta fuera del proyecto SDD configurado."
-        # Documentation and configuration can be edited to close the gate;
-        # never exempt code/tools/hooks or paths outside the target project.
-        if relative.parts and relative.parts[0] == "docs" and len(relative.parts) > 1:
-            return True, ""
-        if relative == Path("sdd.json"):
+        # Specification documents can be edited to close the gate;
+        # never exempt code/tools/hooks, sdd.json or paths outside the project.
+        if is_spec_document(root, path):
             return True, ""
 
     errors, _ = validate(root, "all")
     if errors:
         lines = "\n".join(" - " + x for x in errors[:12])
         extra = f"\n ... y {len(errors) - 12} errores mas" if len(errors) > 12 else ""
+        hint = ""
+        if path is not None and path == root / "sdd.json":
+            hint = ("\nsdd.json define la politica del gate: mientras este cerrado, "
+                    "solo una persona responsable puede modificarlo fuera de Claude Code.")
         return False, (
             "SPEC GATE: requisitos/diseno incompletos en el proyecto destino.\n"
             f"{lines}{extra}\n"
-            "Completar documentos mediante Write/Edit y validar con "
+            "Completar los documentos declarados en sdd.json mediante Write/Edit y validar con "
             "python tools/project_policy.py --project <proyecto>. "
             "Los comandos Bash/PowerShell permanecen bloqueados mientras el gate este cerrado."
+            f"{hint}"
         )
     return True, ""
 
@@ -72,7 +95,7 @@ def main(argv=None):
     try:
         event = json.load(sys.stdin)
         allowed, reason = decide(args.project, event)
-    except (ValueError, OSError, json.JSONDecodeError) as exc:
+    except (ValueError, OSError) as exc:  # JSONDecodeError subclasses ValueError
         allowed, reason = False, f"SPEC GATE: evento invalido: {exc}"
     if allowed:
         return 0
