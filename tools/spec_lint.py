@@ -1,10 +1,12 @@
 """Spec Gate - validador de completitud de las Etapas 1 (Requisitos) y 2 (Diseno).
 
 Uso:
-    python tools/spec_lint.py              # valida las dos etapas
-    python tools/spec_lint.py --stage 1    # solo requisitos
-    python tools/spec_lint.py --stage 2    # solo diseno
-    python tools/spec_lint.py --quiet      # solo errores, sin resumen
+    python tools/spec_lint.py --root <proyecto>              # valida las dos etapas
+    python tools/spec_lint.py --root <proyecto> --stage 1    # solo requisitos
+    python tools/spec_lint.py --root <proyecto> --stage 2    # solo diseno
+    python tools/spec_lint.py --root <proyecto> --quiet      # solo errores, sin resumen
+
+--root es obligatorio: el validador nunca asume que el proyecto es sdd_agent.
 
 Codigos de salida:
     0 = spec completa
@@ -272,11 +274,15 @@ def run_checks(root, stage="all"):
 def main():
     ap = argparse.ArgumentParser(description="Valida la completitud de requisitos y diseno.")
     ap.add_argument("--stage", choices=["1", "2", "all"], default="all")
-    ap.add_argument("--root", default=None, help="Raiz del proyecto (por defecto, la del script)")
+    ap.add_argument("--root", required=True,
+                    help="Raiz del proyecto destino (no el repositorio del agente)")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args()
 
-    root = args.root or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    root = os.path.abspath(args.root)
+    if not os.path.isdir(root):
+        print(f"[ERROR] no existe el proyecto: {root}", file=sys.stderr)
+        return 2
     errores, warnings = run_checks(root, args.stage)
 
     for w in warnings:

@@ -23,7 +23,9 @@ Cierre y reinicio de Claude Code obligatorios para volver a cargar los hooks. Co
 | Intento | Especificación incompleta | Especificación completa |
 |---|---|---|
 | Write/Edit en `docs/` del proyecto | Permitido | Permitido |
-| Write/Edit en `sdd.json` | Permitido | Permitido |
+| Write/Edit en documentos y directorio de ADR declarados en `sdd.json` (aunque estén fuera de `docs/`) | Permitido | Permitido |
+| Write/Edit de diagramas `.mmd` dentro del proyecto | Permitido | Permitido |
+| Write/Edit en `sdd.json` | Bloqueado (lo modifica la persona responsable fuera de Claude Code) | Permitido |
 | Write/Edit en `src/`, `tools/`, `.claude/` u otras rutas | Bloqueado | Permitido |
 | NotebookEdit | Mismas reglas de ruta | Permitido |
 | Bash/PowerShell (cualquier comando) | Bloqueado | Permitido |
@@ -45,4 +47,4 @@ Para comprobar el bloqueo desde Claude Code: iniciar una sesión en el directori
 
 ## Límites
 
-El hook solo cubre las herramientas que coincidan con su matcher. No sustituye permisos de archivos, controles de CI ni revisión humana. Un resultado `[OK]` del linter no implica que el diseño esté aprobado. Si se necesita restringir también herramientas MCP específicas, habrá que definir hooks adicionales por nombre y esquema. Revisar en Claude Code la configuración y los permisos efectivos antes de confiar en el mecanismo como control de proceso.
+El hook solo cubre las herramientas que coincidan con su matcher (`Write|Edit|NotebookEdit|Bash|PowerShell`). Reinstalar sobre una versión anterior reemplaza la entrada previa, aunque usara otro matcher. Con el gate abierto, `sdd.json` vuelve a ser editable: revisar sus cambios en code review o CI, porque quitar perfiles o secciones relaja la política. No sustituye permisos de archivos, controles de CI ni revisión humana. Un resultado `[OK]` del linter no implica que el diseño esté aprobado. Si se necesita restringir también herramientas MCP específicas, habrá que definir hooks adicionales por nombre y esquema. Revisar en Claude Code la configuración y los permisos efectivos antes de confiar en el mecanismo como control de proceso.
